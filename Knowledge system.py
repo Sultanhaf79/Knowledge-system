@@ -19,12 +19,12 @@ html, body, [class*="css"] {
 /* Header Box */
 .header-box {
     width: 100%;
-    background-color: dark white;
-    border: 2px light black;
+    background-color: gray;
+    border: 2px solid black;
     padding: 20px;
     text-align: center;
     font-size: 38px;
-    font-weight: regular;
+    font-weight: bold;
     color: black;
     border-radius: 10px;
     margin-bottom: 20px;
