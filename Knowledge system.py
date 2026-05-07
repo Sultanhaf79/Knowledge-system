@@ -12,19 +12,19 @@ st.markdown("""
 <style>
 
 html, body, [class*="css"] {
-    background-color: white;
-    color: black;
+    background-color: gray;
+    color: darkgray;
 }
 
 /* Header Box */
 .header-box {
     width: 100%;
-    background-color: white;
-    border: 2px solid black;
+    background-color: dark white;
+    border: 2px light black;
     padding: 20px;
     text-align: center;
     font-size: 38px;
-    font-weight: bold;
+    font-weight: regular;
     color: black;
     border-radius: 10px;
     margin-bottom: 20px;
