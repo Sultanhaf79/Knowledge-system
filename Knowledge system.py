@@ -200,3 +200,95 @@ prompt = st.chat_input("Type your text")
 
 
 
+import streamlit as st
+
+# Page Config
+st.set_page_config(
+    page_title="Knowledge System",
+    layout="wide"
+)
+
+# ---------------- CSS ----------------
+st.markdown("""
+<style>
+
+/* Main Background */
+.stApp {
+    background: linear-gradient(to bottom, #f5f5f5, #ececec);
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: white;
+    width: 260px !important;
+    border-right: 1px solid #f0f0f0;
+}
+
+/* Menu Items */
+.menu-item {
+    font-size: 22px;
+    color: black;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Recents */
+.recent-title {
+    font-size: 28px;
+    font-weight: bold;
+    color: black;
+    margin-top: 40px;
+}
+
+/* Main Title */
+.main-title {
+    font-size: 42px;
+    font-weight: bold;
+    color: black;
+}
+
+/* Chat Input */
+.stChatInput textarea {
+    background-color: white !important;
+    border-radius: 15px !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- Sidebar ----------------
+with st.sidebar:
+
+    st.markdown(
+        '<div class="menu-item">✏️ <span>New chat</span></div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="menu-item">🔍 <span>Search chats</span></div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="menu-item">⋯ <span>More</span></div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="recent-title">Recents</div>',
+        unsafe_allow_html=True
+    )
+
+# ---------------- Main Page ----------------
+st.markdown(
+    '<div class="main-title">Knowledge System</div>',
+    unsafe_allow_html=True
+)
+
+# Bottom Input
+prompt = st.chat_input("Type your text")
+
+
+
