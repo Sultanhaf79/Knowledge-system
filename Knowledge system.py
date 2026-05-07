@@ -18,7 +18,7 @@ html, body, [class*="css"] {
 /* Header Box */
 .header-box {
     width: 100%;
-    background-color: white;
+    background-color: off white;
     border: 2px solid black;
     padding: 20px;
     text-align: center;
