@@ -239,7 +239,7 @@ with st.sidebar:
         st.subheader("বইয়ের তালিকা")
         for b in books:
             count = sum(1 for c in kb if c["book"] == b)
-            st.markdown("**বিষয়:** " + r['text']))
+            st.write(r['text'])
     st.divider()
     st.subheader("📤 বই যোগ করুন")
     uploaded_file = st.file_uploader("DOCX ফাইল আপলোড করুন", type=["docx"])
