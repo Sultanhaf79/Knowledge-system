@@ -173,7 +173,7 @@ def get_answer(query, results):
     return resp.choices[0].message.content
 
 # UI
-st.title("AI Janobhandar")
+st.title("AI জ্ঞানভাণ্ডার")
 st.caption("Smart Search with Topic and CQ")
 
 if "kb" not in st.session_state:
