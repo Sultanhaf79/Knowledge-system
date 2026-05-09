@@ -238,7 +238,7 @@ if query:
             for i, r in enumerate(results, 1):
                 label = "[" + str(i) + "] " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"])
                 with st.expander(label):
-                    st.write(r["text"])
+                    st.text(r["text"])
                     if r.get("parts"):
                         for k, v in r["parts"].items():
                             st.write(k + ". " + v)
