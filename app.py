@@ -58,7 +58,7 @@ def parse_docx(file_bytes, book_name):
 
         def flush_cq():
             if cur_cq and cur_text:
-                full = " ".join(cur_text)
+                full = "\n".join(cur_text)
                 chunks.append({"book": book_name, "type": "CQ", "topic": cur_topic,
                     "cq_num": cur_cq, "text": full, "parts": dict(cur_parts),
                     "searchable": book_name + " CQ " + cur_topic + " " + full + " " + " ".join(cur_parts.values())})
@@ -95,7 +95,7 @@ def parse_docx(file_bytes, book_name):
 
         def flush_mcq():
             if cur_q and cur_text:
-                full = " ".join(cur_text)
+                full = "\n".join(cur_text)
                 chunks.append({"book": book_name, "type": "MCQ", "topic": "MCQ",
                     "cq_num": cur_q, "text": full, "parts": dict(cur_opts),
                     "searchable": book_name + " MCQ " + full + " " + " ".join(cur_opts.values())})
@@ -113,7 +113,7 @@ def parse_docx(file_bytes, book_name):
                 cur_opts[om.group(1)] = om.group(2); cur_text.append(t); continue
             am = re.search(r'উত্তর\s*[:\-।]?\s*(.*)', t)
             if am and cur_q:
-                cur_opts["উত্তর"] = am.group(1); cur_text.append(t); continue
+                cur_opts["Ans"] = am.group(1); cur_text.append(t); continue
             if cur_q: cur_text.append(t)
         flush_mcq()
 
@@ -122,7 +122,7 @@ def parse_docx(file_bytes, book_name):
 
         def flush_item():
             if cur_text and cur_title:
-                full = " ".join(cur_text)
+                full = "\n".join(cur_text)
                 chunks.append({"book": book_name, "type": content_type, "topic": content_type,
                     "cq_num": cur_title, "text": full, "parts": {},
                     "searchable": book_name + " " + content_type + " " + cur_title + " " + full})
@@ -156,15 +156,15 @@ def search(query, kb, top_k=5):
     return [c for _, c in scored[:top_k]]
 
 def get_answer(query, results):
-    if not GROQ_API_KEY: return "Groq API key নেই।"
-    if not results: return "এই বিষয়ে কোনো তথ্য পাওয়া যায়নি।"
+    if not GROQ_API_KEY: return "Groq API key missing."
+    if not results: return "No information found."
     ctx = []
     for i, r in enumerate(results, 1):
         pt = ""
         if r.get("parts"):
             pt = "\n" + "\n".join(k + ". " + v for k, v in r["parts"].items())
-        ctx.append("[" + str(i) + "] বই: " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"]) + "\n" + r["text"] + pt)
-    prompt = "আপনি একটি নলেজ সিস্টেম। নিচের তথ্য থেকে উত্তর দিন। বাংলায় উত্তর দিন। বইয়ের নাম ও নম্বর উল্লেখ করুন।\n\n" + "\n\n".join(ctx) + "\n\nপ্রশ্ন: " + query + "\nউত্তর:"
+        ctx.append("[" + str(i) + "] Book: " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"]) + "\n" + r["text"] + pt)
+    prompt = "You are a knowledge retrieval system. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item number.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
     client = Groq(api_key=GROQ_API_KEY)
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -172,78 +172,78 @@ def get_answer(query, results):
         temperature=0.1, max_tokens=2048)
     return resp.choices[0].message.content
 
-# UI
-st.title("AI জ্ঞানভাণ্ডার")
-st.caption("Smart Search with Topic and CQ")
+# ── UI ────────────────────────────────────────────────────────────────────────
+st.title("📚 AI জ্ঞানভাণ্ডার")
+st.caption("Topic ও CQ নম্বর সহ স্মার্ট সার্চ")
 
 if "kb" not in st.session_state:
-    with st.spinner("Loading..."):
+    with st.spinner("লোড হচ্ছে..."):
         st.session_state.kb = load_kb()
 
 kb = st.session_state.kb
 books = sorted(set(c["book"] for c in kb)) if kb else []
 
 with st.sidebar:
-    st.header("Database Info")
+    st.header("📊 ডেটাবেজ তথ্য")
     c1, c2 = st.columns(2)
-    c1.metric("Books", len(books))
-    c2.metric("Items", len(kb))
+    c1.metric("বই", len(books))
+    c2.metric("আইটেম", len(kb))
     if books:
         st.divider()
-        st.subheader("Book List")
+        st.subheader("বইয়ের তালিকা")
         for b in books:
             cnt = sum(1 for c in kb if c["book"] == b)
-            st.write("- " + b + " (" + str(cnt) + ")")
+            st.write("📖 " + b + " (" + str(cnt) + ")")
     st.divider()
-    st.subheader("Add Book")
-    uf = st.file_uploader("Upload DOCX", type=["docx"])
-    bn = st.text_input("Book name (optional)")
-    if uf and st.button("Add", type="primary"):
+    st.subheader("📤 বই যোগ করুন")
+    uf = st.file_uploader("DOCX ফাইল আপলোড করুন", type=["docx"])
+    bn = st.text_input("বইয়ের নাম (ঐচ্ছিক)")
+    if uf and st.button("যোগ করুন", type="primary"):
         name = bn or uf.name.replace(".docx", "")
-        with st.spinner("Processing..."):
+        with st.spinner("প্রসেস হচ্ছে..."):
             nc = parse_docx(uf.read(), name)
             kd = load_kb()
             kd = [c for c in kd if c["book"] != name]
             kd.extend(nc)
             save_kb(kd)
             st.session_state.kb = kd
-        st.success(str(len(nc)) + " items added!")
+        st.success(str(len(nc)) + " টি আইটেম যোগ হয়েছে!")
         st.rerun()
     if books:
         st.divider()
-        st.subheader("Delete Book")
-        db = st.selectbox("Select", options=books)
-        if st.button("Delete"):
+        st.subheader("🗑️ বই মুছুন")
+        db = st.selectbox("বই সিলেক্ট করুন", options=books)
+        if st.button("মুছুন"):
             kd = load_kb()
             kd = [c for c in kd if c["book"] != db]
             save_kb(kd)
             st.session_state.kb = kd
-            st.success("Deleted!")
+            st.success("মুছে গেছে!")
             st.rerun()
 
 st.divider()
-query = st.text_input("Search", placeholder="Write your question here...")
+query = st.text_input("🔍 প্রশ্ন লিখুন", placeholder="যেকোনো প্রশ্ন লিখুন...")
 if query:
     if not kb:
-        st.warning("Database empty! Add books from sidebar.")
+        st.warning("ডেটাবেজ খালি!")
     else:
-        with st.spinner("Searching..."):
+        with st.spinner("খোঁজা হচ্ছে..."):
             results = search(query, kb, top_k=5)
             answer = get_answer(query, results)
-        st.subheader("Answer")
+        st.subheader("📝 উত্তর")
         st.write(answer)
         if results:
             st.divider()
-            st.subheader("References (" + str(len(results)) + ")")
+            st.subheader("📄 রেফারেন্স (" + str(len(results)) + "টি উৎস)")
             for i, r in enumerate(results, 1):
-                label = "[" + str(i) + "] " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"])
+                label = "[" + str(i) + "] 📖 " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"])
                 with st.expander(label):
-                    st.text(r["text"])
+                    st.code(r["text"], language=None)
                     if r.get("parts"):
                         for k, v in r["parts"].items():
                             st.write(k + ". " + v)
 else:
     if not kb:
-        st.info("Upload DOCX files from the sidebar to get started.")
+        st.info("বাম দিক থেকে DOCX ফাইল আপলোড করুন।")
     else:
-        st.info("Write a question above to search all books.")
+        st.info("উপরে প্রশ্ন লিখুন।")
