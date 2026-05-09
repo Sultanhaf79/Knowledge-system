@@ -206,7 +206,7 @@ def get_answer(query, results):
         parts_text = ""
         if r.get("parts"):
             parts_text = "\n" + "\n".join([f"   {k}. {v}" for k, v in r["parts"].items()])
-        context_parts.append(f"[{i}] বই: {r['book']} | {r['topic']} | CQ: {r['cq_num']}\nউদ্দীপক: {r['text'][:400]}{parts_text}")
+        context_parts.append(f"[{i}] বই: {r['book']} | {r['topic']} | CQ: {r['cq_num']}\nউদ্দীপক: {r['text']}{parts_text}")
     prompt = f"""আপনি একটি স্মার্ট নলেজ রিট্রিভাল সিস্টেম। নিচের তথ্যসূত্র থেকে প্রশ্নের উত্তর দিন।
 নিয়ম: বাংলায় উত্তর দিন। বইয়ের নাম, Topic নম্বর ও CQ নম্বর উল্লেখ করুন। তথ্য না থাকলে স্পষ্ট বলুন।
 তথ্যসূত্র:\n{chr(10).join(context_parts)}\nপ্রশ্ন: {query}\nউত্তর:"""
@@ -239,7 +239,7 @@ with st.sidebar:
         st.subheader("বইয়ের তালিকা")
         for b in books:
             count = sum(1 for c in kb if c["book"] == b)
-            st.markdown(f"📖 **{b}** ({count} CQ)")
+            st.markdown(f"**বিষয়:** {r['text']}")
     st.divider()
     st.subheader("📤 বই যোগ করুন")
     uploaded_file = st.file_uploader("DOCX ফাইল আপলোড করুন", type=["docx"])
