@@ -54,46 +54,137 @@ def parse_docx(file_bytes, book_name):
     import io
     doc = Document(io.BytesIO(file_bytes))
     chunks = []
-    current_topic = "সাধারণ"
-    current_cq_num = None
-    current_cq_text = []
-    current_parts = {}
-    current_part = None
+    paragraphs = doc.paragraphs
 
-    def save_cq():
-        if current_cq_num is not None and current_cq_text:
-            full_text = " ".join(current_cq_text)
-            chunks.append({
-                "book": book_name, "topic": current_topic, "cq_num": current_cq_num,
-                "text": full_text, "parts": dict(current_parts),
-                "searchable": f"{book_name} {current_topic} {full_text} " + " ".join(current_parts.values())
-            })
-
-    for para in doc.paragraphs:
+    # ── ফাইলের type বের করা ──────────────────────────────────────────
+    content_type = "CQ"  # default
+    for para in paragraphs[:5]:  # প্রথম ৫ লাইনে খোঁজা
         text = para.text.strip()
-        if not text:
-            continue
-        topic_match = re.search(r'Topic\s*[-–]?\s*(\d+)', text, re.IGNORECASE)
-        if topic_match:
-            save_cq()
-            current_topic = f"Topic-{topic_match.group(1)}"
-            current_cq_num = None; current_cq_text = []; current_parts = {}; current_part = None
-            continue
-        cq_match = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', text)
-        if cq_match:
-            save_cq()
-            current_cq_num = cq_match.group(1); current_cq_text = [text]; current_parts = {}; current_part = None
-            continue
-        part_match = re.match(r'^([কখগঘ])[।.]\s*(.*)', text)
-        if part_match:
-            current_part = part_match.group(1); current_parts[current_part] = part_match.group(2)
-            if current_cq_text: current_cq_text.append(text)
-            continue
-        if current_cq_num:
-            if current_part and current_part in current_parts:
-                current_parts[current_part] += " " + text
-            current_cq_text.append(text)
-    save_cq()
+        type_match = re.search(r'Type\s*[:\-]\s*(\w+)', text, re.IGNORECASE)
+        if type_match:
+            content_type = type_match.group(1).upper()
+            break
+
+    # ── CQ টাইপ ──────────────────────────────────────────────────────
+    if content_type == "CQ":
+        current_topic = "সাধারণ"
+        current_cq_num = None
+        current_cq_text = []
+        current_parts = {}
+        current_part = None
+
+        def save_cq():
+            if current_cq_num is not None and current_cq_text:
+                full_text = " ".join(current_cq_text)
+                chunks.append({
+                    "book": book_name, "type": "CQ",
+                    "topic": current_topic, "cq_num": current_cq_num,
+                    "text": full_text, "parts": dict(current_parts),
+                    "searchable": f"{book_name} CQ {current_topic} {full_text} " + " ".join(current_parts.values())
+                })
+
+        for para in paragraphs:
+            text = para.text.strip()
+            if not text or re.search(r'Type\s*[:\-]\s*\w+', text, re.IGNORECASE):
+                continue
+            topic_match = re.search(r'Topic\s*[-–]?\s*(\d+)', text, re.IGNORECASE)
+            if topic_match:
+                save_cq()
+                current_topic = f"Topic-{topic_match.group(1)}"
+                current_cq_num = None; current_cq_text = []; current_parts = {}; current_part = None
+                continue
+            cq_match = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', text)
+            if cq_match:
+                save_cq()
+                current_cq_num = cq_match.group(1); current_cq_text = [text]; current_parts = {}; current_part = None
+                continue
+            part_match = re.match(r'^([কখগঘ])[।.]\s*(.*)', text)
+            if part_match:
+                current_part = part_match.group(1); current_parts[current_part] = part_match.group(2)
+                if current_cq_text: current_cq_text.append(text)
+                continue
+            if current_cq_num:
+                if current_part and current_part in current_parts:
+                    current_parts[current_part] += " " + text
+                current_cq_text.append(text)
+        save_cq()
+
+    # ── MCQ টাইপ ─────────────────────────────────────────────────────
+    elif content_type == "MCQ":
+        current_q_num = None
+        current_q_text = []
+        current_options = {}
+
+        def save_mcq():
+            if current_q_num is not None and current_q_text:
+                full_text = " ".join(current_q_text)
+                chunks.append({
+                    "book": book_name, "type": "MCQ",
+                    "topic": "MCQ", "cq_num": current_q_num,
+                    "text": full_text, "parts": dict(current_options),
+                    "searchable": f"{book_name} MCQ {full_text} " + " ".join(current_options.values())
+                })
+
+        for para in paragraphs:
+            text = para.text.strip()
+            if not text or re.search(r'Type\s*[:\-]\s*\w+', text, re.IGNORECASE):
+                continue
+            q_match = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', text)
+            if q_match:
+                save_mcq()
+                current_q_num = q_match.group(1); current_q_text = [text]; current_options = {}
+                continue
+            opt_match = re.match(r'^[\(\[]?([কখগঘABCDabcd])[)\]।.]\s*(.*)', text)
+            if opt_match and current_q_num:
+                current_options[opt_match.group(1)] = opt_match.group(2)
+                current_q_text.append(text)
+                continue
+            ans_match = re.search(r'উত্তর\s*[:\-।]?\s*(.*)', text, re.IGNORECASE)
+            if ans_match and current_q_num:
+                current_options["উত্তর"] = ans_match.group(1)
+                current_q_text.append(text)
+                continue
+            if current_q_num:
+                current_q_text.append(text)
+        save_mcq()
+
+    # ── অন্যান্য টাইপ (Letter, Application, Paragraph, Story, Dialogue, Bhab) ──
+    else:
+        current_title = None
+        current_text = []
+        item_num = 0
+
+        def save_item():
+            nonlocal item_num
+            if current_text:
+                item_num += 1
+                full_text = " ".join(current_text)
+                title = current_title or f"{content_type} {item_num}"
+                chunks.append({
+                    "book": book_name, "type": content_type,
+                    "topic": content_type, "cq_num": title,
+                    "text": full_text, "parts": {},
+                    "searchable": f"{book_name} {content_type} {title} {full_text}"
+                })
+
+        for para in paragraphs:
+            text = para.text.strip()
+            if not text or re.search(r'Type\s*[:\-]\s*\w+', text, re.IGNORECASE):
+                continue
+
+            # নতুন item শুরু (নম্বর বা bold heading)
+            new_item = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+(.*)', text)
+            if new_item or (para.runs and para.runs[0].bold and len(text) < 150):
+                save_item()
+                current_title = text
+                current_text = [text]
+                continue
+
+            if current_text is not None:
+                current_text.append(text)
+
+        save_item()
+
     return chunks
 
 def search(query, kb, top_k=5):
@@ -192,10 +283,11 @@ if query:
             st.divider()
             st.subheader(f"📄 রেফারেন্স ({len(results)}টি উৎস)")
             for i, r in enumerate(results, 1):
-                with st.expander(f"[{i}] 📖 {r['book']} | {r['topic']} | CQ {r['cq_num']}"):
-                    st.markdown(f"**উদ্দীপক:** {r['text'][:300]}…")
+                rtype = r.get("type", "CQ")
+                with st.expander(f"[{i}] 📖 {r['book']} | {rtype} | {r['cq_num']}"):
+                    st.markdown(f"**বিষয়:** {r['text'][:300]}…")
                     if r.get("parts"):
-                        st.markdown("**প্রশ্নসমূহ:**")
+                        st.markdown("**প্রশ্নসমূহ/অপশন:**")
                         for k, v in r["parts"].items():
                             st.markdown(f"**{k}.** {v}")
 else:
