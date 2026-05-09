@@ -1,297 +1,249 @@
 import streamlit as st
-import os
-import json
-import re
-import base64
-import requests
+import os, json, re, base64, requests
 from groq import Groq
 from docx import Document
 
 st.set_page_config(page_title="AI জ্ঞানভাণ্ডার", page_icon="📚", layout="wide")
 
-GROQ_API_KEY  = st.secrets.get("GROQ_API_KEY", "")
-GITHUB_TOKEN  = st.secrets.get("GITHUB_TOKEN", "")
-GITHUB_REPO   = st.secrets.get("GITHUB_REPO", "")
-KB_FILE_PATH  = "knowledge_base.json"
-GITHUB_API    = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{KB_FILE_PATH}"
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
+GITHUB_REPO  = st.secrets.get("GITHUB_REPO", "")
+KB_FILE      = "knowledge_base.json"
+GH_API       = "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + KB_FILE
 
 def load_kb():
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        if os.path.exists(KB_FILE_PATH):
-            with open(KB_FILE_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
+    if not GITHUB_TOKEN:
+        if os.path.exists(KB_FILE):
+            return json.load(open(KB_FILE, encoding="utf-8"))
         return []
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-        r = requests.get(GITHUB_API, headers=headers)
+        r = requests.get(GH_API, headers={"Authorization": "token " + GITHUB_TOKEN})
         if r.status_code == 200:
-            content = base64.b64decode(r.json()["content"]).decode("utf-8")
-            return json.loads(content)
-        return []
-    except Exception:
-        return []
+            return json.loads(base64.b64decode(r.json()["content"]).decode("utf-8"))
+    except:
+        pass
+    return []
 
 def save_kb(data):
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        with open(KB_FILE_PATH, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return
-    try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-        content = base64.b64encode(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")).decode("utf-8")
-        sha = None
-        r = requests.get(GITHUB_API, headers=headers)
-        if r.status_code == 200:
-            sha = r.json()["sha"]
-        payload = {"message": "Update knowledge base", "content": content}
-        if sha:
-            payload["sha"] = sha
-        requests.put(GITHUB_API, headers=headers, json=payload)
-    except Exception as e:
-        st.warning(f"GitHub সেভ error: {e}")
+    content = base64.b64encode(json.dumps(data, ensure_ascii=False, indent=2).encode()).decode()
+    headers = {"Authorization": "token " + GITHUB_TOKEN}
+    sha = None
+    r = requests.get(GH_API, headers=headers)
+    if r.status_code == 200:
+        sha = r.json()["sha"]
+    payload = {"message": "update kb", "content": content}
+    if sha:
+        payload["sha"] = sha
+    requests.put(GH_API, headers=headers, json=payload)
 
 def parse_docx(file_bytes, book_name):
     import io
     doc = Document(io.BytesIO(file_bytes))
     chunks = []
-    paragraphs = doc.paragraphs
+    paras = doc.paragraphs
 
-    # ── ফাইলের type বের করা ──────────────────────────────────────────
-    content_type = "CQ"  # default
-    for para in paragraphs[:5]:  # প্রথম ৫ লাইনে খোঁজা
-        text = para.text.strip()
-        type_match = re.search(r'Type\s*[:\-]\s*(\w+)', text, re.IGNORECASE)
-        if type_match:
-            content_type = type_match.group(1).upper()
+    content_type = "CQ"
+    for p in paras[:5]:
+        m = re.search(r'Type\s*[:\-]\s*(\w+)', p.text.strip(), re.IGNORECASE)
+        if m:
+            content_type = m.group(1).upper()
             break
 
-    # ── CQ টাইপ ──────────────────────────────────────────────────────
     if content_type == "CQ":
-        current_topic = "সাধারণ"
-        current_cq_num = None
-        current_cq_text = []
-        current_parts = {}
-        current_part = None
+        cur_topic = "General"
+        cur_cq = None
+        cur_text = []
+        cur_parts = {}
+        cur_part = None
 
-        def save_cq():
-            if current_cq_num is not None and current_cq_text:
-                full_text = " ".join(current_cq_text)
-                chunks.append({
-                    "book": book_name, "type": "CQ",
-                    "topic": current_topic, "cq_num": current_cq_num,
-                    "text": full_text, "parts": dict(current_parts),
-                    "searchable": f"{book_name} CQ {current_topic} {full_text} " + " ".join(current_parts.values())
-                })
+        def flush_cq():
+            if cur_cq and cur_text:
+                full = " ".join(cur_text)
+                chunks.append({"book": book_name, "type": "CQ", "topic": cur_topic,
+                    "cq_num": cur_cq, "text": full, "parts": dict(cur_parts),
+                    "searchable": book_name + " CQ " + cur_topic + " " + full + " " + " ".join(cur_parts.values())})
 
-        for para in paragraphs:
-            text = para.text.strip()
-            if not text or re.search(r'Type\s*[:\-]\s*\w+', text, re.IGNORECASE):
+        for p in paras:
+            t = p.text.strip()
+            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE):
                 continue
-            topic_match = re.search(r'Topic\s*[-–]?\s*(\d+)', text, re.IGNORECASE)
-            if topic_match:
-                save_cq()
-                current_topic = f"Topic-{topic_match.group(1)}"
-                current_cq_num = None; current_cq_text = []; current_parts = {}; current_part = None
+            tm = re.search(r'Topic\s*[-]?\s*(\d+)', t, re.IGNORECASE)
+            if tm:
+                flush_cq()
+                cur_topic = "Topic-" + tm.group(1)
+                cur_cq = None; cur_text = []; cur_parts = {}; cur_part = None
                 continue
-            cq_match = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', text)
-            if cq_match:
-                save_cq()
-                current_cq_num = cq_match.group(1); current_cq_text = [text]; current_parts = {}; current_part = None
+            cm = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', t)
+            if cm:
+                flush_cq()
+                cur_cq = cm.group(1); cur_text = [t]; cur_parts = {}; cur_part = None
                 continue
-            part_match = re.match(r'^([কখগঘ])[।.]\s*(.*)', text)
-            if part_match:
-                current_part = part_match.group(1); current_parts[current_part] = part_match.group(2)
-                if current_cq_text: current_cq_text.append(text)
+            pm = re.match(r'^([কখগঘ])[।.]\s*(.*)', t)
+            if pm:
+                cur_part = pm.group(1)
+                cur_parts[cur_part] = pm.group(2)
+                if cur_text: cur_text.append(t)
                 continue
-            if current_cq_num:
-                if current_part and current_part in current_parts:
-                    current_parts[current_part] += " " + text
-                current_cq_text.append(text)
-        save_cq()
+            if cur_cq:
+                if cur_part and cur_part in cur_parts:
+                    cur_parts[cur_part] += " " + t
+                cur_text.append(t)
+        flush_cq()
 
-    # ── MCQ টাইপ ─────────────────────────────────────────────────────
     elif content_type == "MCQ":
-        current_q_num = None
-        current_q_text = []
-        current_options = {}
+        cur_q = None; cur_text = []; cur_opts = {}
 
-        def save_mcq():
-            if current_q_num is not None and current_q_text:
-                full_text = " ".join(current_q_text)
-                chunks.append({
-                    "book": book_name, "type": "MCQ",
-                    "topic": "MCQ", "cq_num": current_q_num,
-                    "text": full_text, "parts": dict(current_options),
-                    "searchable": f"{book_name} MCQ {full_text} " + " ".join(current_options.values())
-                })
+        def flush_mcq():
+            if cur_q and cur_text:
+                full = " ".join(cur_text)
+                chunks.append({"book": book_name, "type": "MCQ", "topic": "MCQ",
+                    "cq_num": cur_q, "text": full, "parts": dict(cur_opts),
+                    "searchable": book_name + " MCQ " + full + " " + " ".join(cur_opts.values())})
 
-        for para in paragraphs:
-            text = para.text.strip()
-            if not text or re.search(r'Type\s*[:\-]\s*\w+', text, re.IGNORECASE):
+        for p in paras:
+            t = p.text.strip()
+            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE): continue
+            qm = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', t)
+            if qm:
+                flush_mcq()
+                cur_q = qm.group(1); cur_text = [t]; cur_opts = {}
                 continue
-            q_match = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', text)
-            if q_match:
-                save_mcq()
-                current_q_num = q_match.group(1); current_q_text = [text]; current_options = {}
-                continue
-            opt_match = re.match(r'^[\(\[]?([কখগঘABCDabcd])[)\]।.]\s*(.*)', text)
-            if opt_match and current_q_num:
-                current_options[opt_match.group(1)] = opt_match.group(2)
-                current_q_text.append(text)
-                continue
-            ans_match = re.search(r'উত্তর\s*[:\-।]?\s*(.*)', text, re.IGNORECASE)
-            if ans_match and current_q_num:
-                current_options["উত্তর"] = ans_match.group(1)
-                current_q_text.append(text)
-                continue
-            if current_q_num:
-                current_q_text.append(text)
-        save_mcq()
+            om = re.match(r'^[\(\[]?([কখগঘABCDabcd])[)\]।.]\s*(.*)', t)
+            if om and cur_q:
+                cur_opts[om.group(1)] = om.group(2); cur_text.append(t); continue
+            am = re.search(r'উত্তর\s*[:\-।]?\s*(.*)', t)
+            if am and cur_q:
+                cur_opts["উত্তর"] = am.group(1); cur_text.append(t); continue
+            if cur_q: cur_text.append(t)
+        flush_mcq()
 
-    # ── অন্যান্য টাইপ (Letter, Application, Paragraph, Story, Dialogue, Bhab) ──
     else:
-        current_title = None
-        current_text = []
-        item_num = 0
+        cur_title = None; cur_text = []; started = False
 
-        def save_item():
-            nonlocal item_num
-            if current_text:
-                item_num += 1
-                full_text = " ".join(current_text)
-                title = current_title or f"{content_type} {item_num}"
-                chunks.append({
-                    "book": book_name, "type": content_type,
-                    "topic": content_type, "cq_num": title,
-                    "text": full_text, "parts": {},
-                    "searchable": f"{book_name} {content_type} {title} {full_text}"
-                })
+        def flush_item():
+            if cur_text and cur_title:
+                full = " ".join(cur_text)
+                chunks.append({"book": book_name, "type": content_type, "topic": content_type,
+                    "cq_num": cur_title, "text": full, "parts": {},
+                    "searchable": book_name + " " + content_type + " " + cur_title + " " + full})
 
-        for para in paragraphs:
-            text = para.text.strip()
-            if not text or re.search(r'Type\s*[:\-]\s*\w+', text, re.IGNORECASE):
+        for p in paras:
+            t = p.text.strip()
+            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE): continue
+            is_bold = p.runs and any(r.bold for r in p.runs if r.text.strip())
+            is_num = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+.{5,}', t)
+            if is_bold and is_num:
+                flush_item()
+                started = True
+                cur_title = re.sub(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+', '', t)
+                cur_text = []
                 continue
-
-            # নতুন item শুরু (নম্বর বা bold heading)
-            new_item = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+(.*)', text)
-            if new_item or (para.runs and para.runs[0].bold and len(text) < 150):
-                save_item()
-                current_title = text
-                current_text = [text]
-                continue
-
-            if current_text is not None:
-                current_text.append(text)
-
-        save_item()
+            if started:
+                cur_text.append(t)
+        flush_item()
 
     return chunks
 
 def search(query, kb, top_k=5):
     if not kb: return []
-    query_words = set(re.findall(r'\w+', query.lower()))
+    qw = set(re.findall(r'\w+', query.lower()))
     scored = []
-    for chunk in kb:
-        words = set(re.findall(r'\w+', chunk.get("searchable", "").lower()))
-        overlap = len(query_words & words)
-        if overlap > 0: scored.append((overlap, chunk))
+    for c in kb:
+        w = set(re.findall(r'\w+', c.get("searchable","").lower()))
+        n = len(qw & w)
+        if n > 0: scored.append((n, c))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [c for _, c in scored[:top_k]]
 
 def get_answer(query, results):
-    if not GROQ_API_KEY: return "⚠️ Groq API key নেই।"
-    if not results: return "❌ এই বিষয়ে কোনো তথ্য পাওয়া যায়নি।"
-    context_parts = []
+    if not GROQ_API_KEY: return "Groq API key নেই।"
+    if not results: return "এই বিষয়ে কোনো তথ্য পাওয়া যায়নি।"
+    ctx = []
     for i, r in enumerate(results, 1):
-        parts_text = ""
+        pt = ""
         if r.get("parts"):
-            parts_text = "\n" + "\n".join([f"   {k}. {v}" for k, v in r["parts"].items()])
-        context_parts.append(f"[{i}] বই: {r['book']} | {r['topic']} | CQ: {r['cq_num']}\nউদ্দীপক: {r['text']}{parts_text}")
-    prompt = f"""আপনি একটি স্মার্ট নলেজ রিট্রিভাল সিস্টেম। নিচের তথ্যসূত্র থেকে প্রশ্নের উত্তর দিন।
-নিয়ম: বাংলায় উত্তর দিন। বইয়ের নাম, Topic নম্বর ও CQ নম্বর উল্লেখ করুন। তথ্য না থাকলে স্পষ্ট বলুন।
-তথ্যসূত্র:\n{chr(10).join(context_parts)}\nপ্রশ্ন: {query}\nউত্তর:"""
+            pt = "\n" + "\n".join(k + ". " + v for k, v in r["parts"].items())
+        ctx.append("[" + str(i) + "] বই: " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"]) + "\n" + r["text"] + pt)
+    prompt = "আপনি একটি নলেজ সিস্টেম। নিচের তথ্য থেকে উত্তর দিন। বাংলায় উত্তর দিন। বইয়ের নাম ও নম্বর উল্লেখ করুন।\n\n" + "\n\n".join(ctx) + "\n\nপ্রশ্ন: " + query + "\nউত্তর:"
     client = Groq(api_key=GROQ_API_KEY)
-    response = client.chat.completions.create(
+    resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.1, max_tokens=1024
-    )
-    return response.choices[0].message.content
+        temperature=0.1, max_tokens=2048)
+    return resp.choices[0].message.content
 
-# ── UI ────────────────────────────────────────────────────────────────────────
-st.title("📚 AI জ্ঞানভাণ্ডার")
-st.caption("Topic ও CQ নম্বর সহ স্মার্ট সার্চ")
+# UI
+st.title("AI Janobhandar")
+st.caption("Smart Search with Topic and CQ")
 
 if "kb" not in st.session_state:
-    with st.spinner("GitHub থেকে ডেটা লোড হচ্ছে..."):
+    with st.spinner("Loading..."):
         st.session_state.kb = load_kb()
 
 kb = st.session_state.kb
 books = sorted(set(c["book"] for c in kb)) if kb else []
 
 with st.sidebar:
-    st.header("📊 ডেটাবেজ তথ্য")
-    col1, col2 = st.columns(2)
-    with col1: st.metric("মোট বই", len(books))
-    with col2: st.metric("মোট CQ", len(kb))
+    st.header("Database Info")
+    c1, c2 = st.columns(2)
+    c1.metric("Books", len(books))
+    c2.metric("Items", len(kb))
     if books:
         st.divider()
-        st.subheader("বইয়ের তালিকা")
+        st.subheader("Book List")
         for b in books:
-            count = sum(1 for c in kb if c["book"] == b)
-            st.write(r['text'])
+            cnt = sum(1 for c in kb if c["book"] == b)
+            st.write("- " + b + " (" + str(cnt) + ")")
     st.divider()
-    st.subheader("📤 বই যোগ করুন")
-    uploaded_file = st.file_uploader("DOCX ফাইল আপলোড করুন", type=["docx"])
-    book_name_input = st.text_input("বইয়ের নাম (ঐচ্ছিক)")
-    if uploaded_file and st.button("যোগ করুন", type="primary"):
-        book_name = book_name_input or uploaded_file.name.replace(".docx", "")
-        with st.spinner("প্রসেস করছি... GitHub-এ সেভ হচ্ছে..."):
-            file_bytes = uploaded_file.read()
-            new_chunks = parse_docx(file_bytes, book_name)
-            kb_data = load_kb()
-            kb_data = [c for c in kb_data if c["book"] != book_name]
-            kb_data.extend(new_chunks)
-            save_kb(kb_data)
-            st.session_state.kb = kb_data
-        st.success(f"✅ {len(new_chunks)}টি CQ যোগ হয়েছে! এখন আর আপলোড করতে হবে না!")
+    st.subheader("Add Book")
+    uf = st.file_uploader("Upload DOCX", type=["docx"])
+    bn = st.text_input("Book name (optional)")
+    if uf and st.button("Add", type="primary"):
+        name = bn or uf.name.replace(".docx", "")
+        with st.spinner("Processing..."):
+            nc = parse_docx(uf.read(), name)
+            kd = load_kb()
+            kd = [c for c in kd if c["book"] != name]
+            kd.extend(nc)
+            save_kb(kd)
+            st.session_state.kb = kd
+        st.success(str(len(nc)) + " items added!")
         st.rerun()
     if books:
         st.divider()
-        st.subheader("🗑️ বই মুছুন")
-        del_book = st.selectbox("বই সিলেক্ট করুন", options=books)
-        if st.button("মুছুন", type="secondary"):
-            kb_data = load_kb()
-            kb_data = [c for c in kb_data if c["book"] != del_book]
-            save_kb(kb_data)
-            st.session_state.kb = kb_data
-            st.success(f"✅ '{del_book}' মুছে গেছে!")
+        st.subheader("Delete Book")
+        db = st.selectbox("Select", options=books)
+        if st.button("Delete"):
+            kd = load_kb()
+            kd = [c for c in kd if c["book"] != db]
+            save_kb(kd)
+            st.session_state.kb = kd
+            st.success("Deleted!")
             st.rerun()
 
 st.divider()
-query = st.text_input("🔍 প্রশ্ন লিখুন", placeholder="যেমন: পর্যায়বৃত্ত গতি কাকে বলে?", label_visibility="collapsed")
+query = st.text_input("Search", placeholder="Write your question here...")
 if query:
     if not kb:
-        st.warning("⚠️ ডেটাবেজ খালি! বাম দিক থেকে বই যোগ করুন।")
+        st.warning("Database empty! Add books from sidebar.")
     else:
-        with st.spinner("🔍 খোঁজা হচ্ছে..."):
+        with st.spinner("Searching..."):
             results = search(query, kb, top_k=5)
             answer = get_answer(query, results)
-        st.subheader("📝 উত্তর")
-        st.markdown(answer)
+        st.subheader("Answer")
+        st.write(answer)
         if results:
             st.divider()
-            st.subheader(f"📄 রেফারেন্স ({len(results)}টি উৎস)")
+            st.subheader("References (" + str(len(results)) + ")")
             for i, r in enumerate(results, 1):
-                rtype = r.get("type", "CQ")
-                with st.expander(f"[{i}] 📖 {r['book']} | {rtype} | {r['cq_num']}"):
-                    st.markdown(f"**বিষয়:** {r['text'][:300]}…")
+                label = "[" + str(i) + "] " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"])
+                with st.expander(label):
+                    st.write(r["text"])
                     if r.get("parts"):
-                        st.markdown("**প্রশ্নসমূহ/অপশন:**")
                         for k, v in r["parts"].items():
-                            st.markdown(f"**{k}.** {v}")
+                            st.write(k + ". " + v)
 else:
     if not kb:
-        st.info("👈 বাম দিক থেকে DOCX ফাইল আপলোড করে শুরু করুন।")
+        st.info("Upload DOCX files from the sidebar to get started.")
     else:
-        st.info("উপরে প্রশ্ন লিখুন — সব বই থেকে Topic ও CQ নম্বর সহ উত্তর পাবেন।")
+        st.info("Write a question above to search all books.")
