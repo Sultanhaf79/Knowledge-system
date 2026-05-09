@@ -239,10 +239,10 @@ if query:
                 label = "[" + str(i) + "] 📖 " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"])
                 with st.expander(label):
                     for line in r["text"].split("\n"):
-                st.write(line)
+                        st.write(line)
                     if r.get("parts"):
-                for k, v in r["parts"].items():
-                    st.write(k + ". " + v)
+                        for k, v in r["parts"].items():
+                            st.write(k + ". " + v)
 else:
     if not kb:
         st.info("বাম দিক থেকে DOCX ফাইল আপলোড করুন।")
