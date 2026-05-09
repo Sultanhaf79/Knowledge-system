@@ -219,10 +219,3 @@ else:
     else:
         st.info("উপরে প্রশ্ন লিখুন — সব বই থেকে Topic ও CQ নম্বর সহ উত্তর পাবেন।")
 
-
-# Debug section
-st.sidebar.divider()
-st.sidebar.write("Debug:")
-st.sidebar.write(f"GITHUB_TOKEN: {'আছে' if GITHUB_TOKEN else 'নেই'}")
-st.sidebar.write(f"GITHUB_REPO: {GITHUB_REPO}")
-st.sidebar.write(f"GROQ_KEY: {'আছে' if GROQ_API_KEY else 'নেই'}")
