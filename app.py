@@ -59,6 +59,16 @@ def get_answer(query, results):
     return resp.choices[0].message.content
 
 # UI
+
+st.markdown("""
+<style>
+.stDeployButton {display:none;}
+#MainMenu {display:none;}
+footer {display:none;}
+header {display:none;}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("📚 AI জ্ঞানভাণ্ডার")
 st.caption("Topic ও CQ নম্বর সহ স্মার্ট সার্চ")
 
