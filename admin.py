@@ -192,8 +192,7 @@ if uf and st.button("যোগ করুন", type="primary"):
         kd.extend(nc)
         save_kb(kd)
         st.session_state.kb = kd
-    st.success(str(len(nc)) + " টি আইটেম যোগ হয়েছে!")
-    st.rerun()
+st.success(str(len(nc)) + " টি আইটেম যোগ হয়েছে! পরের বই আপলোড করুন।")
 
 st.divider()
 
