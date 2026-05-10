@@ -169,34 +169,11 @@ def parse_docx(file_bytes, book_name):
             if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE):
                 continue
             is_bold = p.runs and any(run.bold for run in p.runs if run.text.strip())
-            is_num = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s*\*?\*?\s*.{3,}', t)
-            if is_bold and is_num:
-                flush_item()
-                started = True
-                cur_title = re.sub(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s*\*?\*?\s*', '', t).strip('* ')
-                cur_lines = []
-                continue
-            if started:
-                cur_lines.append(t)
-        flush_item()
-
-
-
-
-
-
-
-        
-        for p in paras:
-            t = p.text.strip()
-            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE):
-                continue
-            is_bold = p.runs and any(run.bold for run in p.runs if run.text.strip())
             is_num = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s*.{3,}', t)
             if is_bold and is_num:
                 flush_item()
                 started = True
-                cur_title = re.sub(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s*\*+\s*', '', t).strip('* ')
+                cur_title = re.sub(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s*\*+\s*', '', t).strip('* ').strip()
                 cur_lines = []
                 continue
             if started:
@@ -305,9 +282,11 @@ if query:
             for i, r in enumerate(results, 1):
                 label = "[" + str(i) + "] 📖 " + r["book"] + " | " + str(r["cq_num"])
                 with st.expander(label):
-                    st.markdown("<h3 style='text-align:center'>" + str(r["cq_num"]) + "</h3>", unsafe_allow_html=True)
                     for line in r["text"].split("\n"):
                         st.write(line)
+                    if r.get("parts"):
+                        for k, v in r["parts"].items():
+                            st.write(k + ". " + v)
 else:
     if not kb:
         st.info("বাম দিক থেকে DOCX ফাইল আপলোড করুন।")
