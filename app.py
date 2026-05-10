@@ -180,6 +180,29 @@ def parse_docx(file_bytes, book_name):
                 cur_lines.append(t)
         flush_item()
 
+
+
+
+
+
+
+        
+        for p in paras:
+            t = p.text.strip()
+            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE):
+                continue
+            is_bold = p.runs and any(run.bold for run in p.runs if run.text.strip())
+            is_num = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+.{5,}', t)
+            if is_bold and is_num:
+                flush_item()
+                started = True
+                cur_title = re.sub(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+', '', t)
+                cur_lines = []
+                continue
+            if started:
+                cur_lines.append(t)
+        flush_item()
+
     return chunks
 
 def search(query, kb, top_k=7):
