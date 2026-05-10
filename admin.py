@@ -165,9 +165,8 @@ header {display:none;}
 st.title("🔧 Admin Panel")
 st.caption("AI জ্ঞানভাণ্ডার — বই যোগ ও মুছুন")
 
-if "kb" not in st.session_state:
-    with st.spinner("লোড হচ্ছে..."):
-        st.session_state.kb = load_kb()
+with st.spinner("লোড হচ্ছে..."):
+    st.session_state.kb = load_kb()
 
 kb = st.session_state.kb
 books = sorted(set(c["book"] for c in kb)) if kb else []
