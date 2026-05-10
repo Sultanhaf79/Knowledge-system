@@ -61,7 +61,7 @@ def parse_docx(file_bytes, book_name):
                 full = "\n".join(cur_text)
                 chunks.append({"book": book_name, "type": "CQ", "topic": cur_topic,
                     "cq_num": cur_cq, "text": full, "parts": dict(cur_parts),
-                    "searchable": book_name + " CQ " + cur_topic + " " + full + " " + " ".join(cur_parts.values())})
+                    "searchable": book_name + " " + content_type + " " + cur_title + " " + cur_title + " " + cur_title + " " + full
 
         for p in paras:
             t = p.text.strip()
@@ -228,7 +228,7 @@ if query:
         st.warning("ডেটাবেজ খালি!")
     else:
         with st.spinner("খোঁজা হচ্ছে..."):
-            results = search(query, kb, top_k=3)
+            results = search(query, kb, top_k=7)
             answer = get_answer(query, results)
         st.subheader("📝 উত্তর")
         st.write(answer)
@@ -236,7 +236,7 @@ if query:
             st.divider()
             st.subheader("📄 রেফারেন্স (" + str(len(results)) + "টি উৎস)")
             for i, r in enumerate(results, 1):
-                label = "[" + str(i) + "] 📖 " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"])
+                label = "[" + str(i) + "] 📖 " + r["book"] + " | " + str(r["cq_num"])
                 with st.expander(label):
                     for line in r["text"].split("\n"):
                         st.write(line)
