@@ -52,16 +52,22 @@ def parse_docx(file_bytes, book_name):
     if content_type == "CQ":
         cur_topic = "General"
         cur_cq = None
-        cur_text = []
+        cur_lines = []
         cur_parts = {}
         cur_part = None
 
         def flush_cq():
-            if cur_cq and cur_text:
-                full = "\n".join(cur_text)
-                chunks.append({"book": book_name, "type": "CQ", "topic": cur_topic,
-                    "cq_num": cur_cq, "text": full, "parts": dict(cur_parts),
-                    "searchable": book_name + " " + content_type + " " + cur_title + " " + cur_title + " " + cur_title + " " + full
+            if cur_cq and cur_lines:
+                full = "\n".join(cur_lines)
+                chunks.append({
+                    "book": book_name,
+                    "type": "CQ",
+                    "topic": cur_topic,
+                    "cq_num": cur_cq,
+                    "text": full,
+                    "parts": dict(cur_parts),
+                    "searchable": book_name + " CQ " + cur_topic + " " + full + " " + " ".join(cur_parts.values())
+                })
 
         for p in paras:
             t = p.text.strip()
@@ -71,108 +77,146 @@ def parse_docx(file_bytes, book_name):
             if tm:
                 flush_cq()
                 cur_topic = "Topic-" + tm.group(1)
-                cur_cq = None; cur_text = []; cur_parts = {}; cur_part = None
+                cur_cq = None
+                cur_lines = []
+                cur_parts = {}
+                cur_part = None
                 continue
             cm = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', t)
             if cm:
                 flush_cq()
-                cur_cq = cm.group(1); cur_text = [t]; cur_parts = {}; cur_part = None
+                cur_cq = cm.group(1)
+                cur_lines = [t]
+                cur_parts = {}
+                cur_part = None
                 continue
             pm = re.match(r'^([কখগঘ])[।.]\s*(.*)', t)
             if pm:
                 cur_part = pm.group(1)
                 cur_parts[cur_part] = pm.group(2)
-                if cur_text: cur_text.append(t)
+                if cur_lines:
+                    cur_lines.append(t)
                 continue
             if cur_cq:
                 if cur_part and cur_part in cur_parts:
                     cur_parts[cur_part] += " " + t
-                cur_text.append(t)
+                cur_lines.append(t)
         flush_cq()
 
     elif content_type == "MCQ":
-        cur_q = None; cur_text = []; cur_opts = {}
+        cur_q = None
+        cur_lines = []
+        cur_opts = {}
 
         def flush_mcq():
-            if cur_q and cur_text:
-                full = "\n".join(cur_text)
-                chunks.append({"book": book_name, "type": "MCQ", "topic": "MCQ",
-                    "cq_num": cur_q, "text": full, "parts": dict(cur_opts),
-                    "searchable": book_name + " MCQ " + full + " " + " ".join(cur_opts.values())})
+            if cur_q and cur_lines:
+                full = "\n".join(cur_lines)
+                chunks.append({
+                    "book": book_name,
+                    "type": "MCQ",
+                    "topic": "MCQ",
+                    "cq_num": cur_q,
+                    "text": full,
+                    "parts": dict(cur_opts),
+                    "searchable": book_name + " MCQ " + full + " " + " ".join(cur_opts.values())
+                })
 
         for p in paras:
             t = p.text.strip()
-            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE): continue
+            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE):
+                continue
             qm = re.match(r'^([১২৩৪৫৬৭৮৯০1-9]\d*)[।.]', t)
             if qm:
                 flush_mcq()
-                cur_q = qm.group(1); cur_text = [t]; cur_opts = {}
+                cur_q = qm.group(1)
+                cur_lines = [t]
+                cur_opts = {}
                 continue
             om = re.match(r'^[\(\[]?([কখগঘABCDabcd])[)\]।.]\s*(.*)', t)
             if om and cur_q:
-                cur_opts[om.group(1)] = om.group(2); cur_text.append(t); continue
+                cur_opts[om.group(1)] = om.group(2)
+                cur_lines.append(t)
+                continue
             am = re.search(r'উত্তর\s*[:\-।]?\s*(.*)', t)
             if am and cur_q:
-                cur_opts["Ans"] = am.group(1); cur_text.append(t); continue
-            if cur_q: cur_text.append(t)
+                cur_opts["Ans"] = am.group(1)
+                cur_lines.append(t)
+                continue
+            if cur_q:
+                cur_lines.append(t)
         flush_mcq()
 
     else:
-        cur_title = None; cur_text = []; started = False
+        cur_title = None
+        cur_lines = []
+        started = False
 
         def flush_item():
-            if cur_text and cur_title:
-                full = "\n".join(cur_text)
-                chunks.append({"book": book_name, "type": content_type, "topic": content_type,
-                    "cq_num": cur_title, "text": full, "parts": {},
-                    "searchable": book_name + " " + content_type + " " + cur_title + " " + full})
+            if cur_lines and cur_title:
+                full = "\n".join(cur_lines)
+                chunks.append({
+                    "book": book_name,
+                    "type": content_type,
+                    "topic": content_type,
+                    "cq_num": cur_title,
+                    "text": full,
+                    "parts": {},
+                    "searchable": book_name + " " + content_type + " " + cur_title + " " + cur_title + " " + cur_title + " " + full
+                })
 
         for p in paras:
             t = p.text.strip()
-            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE): continue
-            is_bold = p.runs and any(r.bold for r in p.runs if r.text.strip())
+            if not t or re.search(r'Type\s*[:\-]\s*\w+', t, re.IGNORECASE):
+                continue
+            is_bold = p.runs and any(run.bold for run in p.runs if run.text.strip())
             is_num = re.match(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+.{5,}', t)
             if is_bold and is_num:
                 flush_item()
                 started = True
                 cur_title = re.sub(r'^(\d+|[১২৩৪৫৬৭৮৯০]+)[।.]\s+', '', t)
-                cur_text = []
+                cur_lines = []
                 continue
             if started:
-                cur_text.append(t)
+                cur_lines.append(t)
         flush_item()
 
     return chunks
 
-def search(query, kb, top_k=5):
-    if not kb: return []
+def search(query, kb, top_k=7):
+    if not kb:
+        return []
     qw = set(re.findall(r'\w+', query.lower()))
     scored = []
     for c in kb:
-        w = set(re.findall(r'\w+', c.get("searchable","").lower()))
+        w = set(re.findall(r'\w+', c.get("searchable", "").lower()))
         n = len(qw & w)
-        if n > 0: scored.append((n, c))
+        if n > 0:
+            scored.append((n, c))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [c for _, c in scored[:top_k]]
 
 def get_answer(query, results):
-    if not GROQ_API_KEY: return "Groq API key missing."
-    if not results: return "No information found."
+    if not GROQ_API_KEY:
+        return "Groq API key missing."
+    if not results:
+        return "No information found."
     ctx = []
     for i, r in enumerate(results, 1):
         pt = ""
         if r.get("parts"):
             pt = "\n" + "\n".join(k + ". " + v for k, v in r["parts"].items())
         ctx.append("[" + str(i) + "] Book: " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"]) + "\n" + r["text"][:500] + pt)
-    prompt = "You are a knowledge retrieval system. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item number.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
+    prompt = "You are a knowledge retrieval system. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name/number.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
     client = Groq(api_key=GROQ_API_KEY)
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.1, max_tokens=1024)
+        temperature=0.1,
+        max_tokens=1024
+    )
     return resp.choices[0].message.content
 
-# ── UI ────────────────────────────────────────────────────────────────────────
+# UI
 st.title("📚 AI জ্ঞানভাণ্ডার")
 st.caption("Topic ও CQ নম্বর সহ স্মার্ট সার্চ")
 
