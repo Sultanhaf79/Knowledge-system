@@ -151,6 +151,16 @@ def parse_docx(file_bytes, book_name):
     return chunks
 
 # UI
+
+st.markdown("""
+<style>
+.stDeployButton {display:none;}
+#MainMenu {display:none;}
+footer {display:none;}
+header {display:none;}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🔧 Admin Panel")
 st.caption("AI জ্ঞানভাণ্ডার — বই যোগ ও মুছুন")
 
