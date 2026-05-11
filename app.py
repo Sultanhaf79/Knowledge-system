@@ -53,7 +53,7 @@ def get_answer(query, results):
         if r.get("parts"):
             pt = "\n" + "\n".join(k + ". " + v for k, v in r["parts"].items())
         ctx.append("[" + str(i) + "] Book: " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"]) + "\n" + r["text"][:500] + pt)
-    prompt = "You are a knowledge retrieval system. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
+    prompt = "You are a knowledge retrieval system. Total items in database: " + str(len([r for r in results])) + " shown out of many. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:" Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
     client = Groq(api_key=GROQ_API_KEY)
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
