@@ -32,13 +32,8 @@ def search(query, kb, top_k=7):
     for c in kb:
         w = set(re.findall(r'\w+', c.get("searchable", "").lower()))
         n = len(qw & w)
-        # title exact match হলে বেশি score
-        title = str(c.get("cq_num", "")).lower()
-        title_match = len(qw & set(re.findall(r'\w+', title)))
-        score = n + (title_match * 10)
         if n > 0:
-            scored.append((score, c))
-            
+            scored.append((n, c))
     scored.sort(key=lambda x: x[0], reverse=True)
     return [c for _, c in scored[:top_k]]
 
@@ -53,7 +48,7 @@ def get_answer(query, results):
         if r.get("parts"):
             pt = "\n" + "\n".join(k + ". " + v for k, v in r["parts"].items())
         ctx.append("[" + str(i) + "] Book: " + r["book"] + " | " + r["type"] + " | " + str(r["cq_num"]) + "\n" + r["text"][:500] + pt)
-    prompt = "You are a knowledge retrieval system. Total items in database: " + str(len([r for r in results])) + " shown out of many. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:" Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
+    prompt = "You are a knowledge retrieval system. The database has many items but only top results are shown here. Answer the question using the provided references. Respond in the same language as the question. Always mention book name and item name.\n\nReferences:\n" + "\n\n".join(ctx) + "\n\nQuestion: " + query + "\nAnswer:"
     client = Groq(api_key=GROQ_API_KEY)
     resp = client.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -64,17 +59,6 @@ def get_answer(query, results):
     return resp.choices[0].message.content
 
 # UI
-
-st.markdown("""
-<style>
-.stDeployButton {display:none;}
-#MainMenu {display:none;}
-footer {display:none;}
-header {display:none;}
-[data-testid="stToolbar"] {display:none;}
-</style>
-""", unsafe_allow_html=True)
-
 st.title("📚 AI জ্ঞানভাণ্ডার")
 st.caption("Topic ও CQ নম্বর সহ স্মার্ট সার্চ")
 
