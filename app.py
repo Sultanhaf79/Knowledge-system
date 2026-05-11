@@ -32,8 +32,13 @@ def search(query, kb, top_k=7):
     for c in kb:
         w = set(re.findall(r'\w+', c.get("searchable", "").lower()))
         n = len(qw & w)
+        # title exact match হলে বেশি score
+        title = str(c.get("cq_num", "")).lower()
+        title_match = len(qw & set(re.findall(r'\w+', title)))
+        score = n + (title_match * 10)
         if n > 0:
-            scored.append((n, c))
+            scored.append((score, c))
+            
     scored.sort(key=lambda x: x[0], reverse=True)
     return [c for _, c in scored[:top_k]]
 
