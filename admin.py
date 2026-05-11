@@ -1,40 +1,51 @@
 import streamlit as st
 import os, json, re, base64, requests
-from groq import Groq
 from docx import Document
 
 st.set_page_config(page_title="Admin Panel", page_icon="🔧", layout="wide")
 
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+st.markdown("""
+<style>
+.stDeployButton {display:none;}
+#MainMenu {display:none;}
+footer {display:none;}
+header {display:none;}
+[data-testid="stToolbar"] {display:none;}
+</style>
+""", unsafe_allow_html=True)
+
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
 GITHUB_REPO  = st.secrets.get("GITHUB_REPO", "")
 KB_FILE      = "knowledge_base.json"
 GH_API       = "https://api.github.com/repos/" + GITHUB_REPO + "/contents/" + KB_FILE
 
 def load_kb():
-    if not GITHUB_TOKEN:
-        if os.path.exists(KB_FILE):
-            return json.load(open(KB_FILE, encoding="utf-8"))
-        return []
     try:
         r = requests.get(GH_API, headers={"Authorization": "token " + GITHUB_TOKEN})
         if r.status_code == 200:
-            return json.loads(base64.b64decode(r.json()["content"]).decode("utf-8"))
+            content = base64.b64decode(r.json()["content"]).decode("utf-8")
+            if content.strip():
+                return json.loads(content)
     except:
         pass
     return []
 
 def save_kb(data):
-    content = base64.b64encode(json.dumps(data, ensure_ascii=False, indent=2).encode()).decode()
-    headers = {"Authorization": "token " + GITHUB_TOKEN}
-    sha = None
-    r = requests.get(GH_API, headers=headers)
-    if r.status_code == 200:
-        sha = r.json()["sha"]
-    payload = {"message": "update kb", "content": content}
-    if sha:
-        payload["sha"] = sha
-    requests.put(GH_API, headers=headers, json=payload)
+    try:
+        content = base64.b64encode(json.dumps(data, ensure_ascii=False, indent=2).encode()).decode()
+        headers = {"Authorization": "token " + GITHUB_TOKEN}
+        sha = None
+        r = requests.get(GH_API, headers=headers)
+        if r.status_code == 200:
+            sha = r.json().get("sha")
+        payload = {"message": "update kb", "content": content}
+        if sha:
+            payload["sha"] = sha
+        resp = requests.put(GH_API, headers=headers, json=payload)
+        return resp.status_code in [200, 201]
+    except Exception as e:
+        st.error("Save error: " + str(e))
+        return False
 
 def parse_docx(file_bytes, book_name):
     import io
@@ -151,68 +162,50 @@ def parse_docx(file_bytes, book_name):
     return chunks
 
 # UI
+st.title("Admin Panel")
+st.caption("AI Knowledge Base - Add & Remove Books")
 
-st.markdown("""
-<style>
-.stDeployButton {display:none;}
-#MainMenu {display:none;}
-footer {display:none;}
-header {display:none;}
-[data-testid="stToolbar"] {display:none;}
-</style>
-""", unsafe_allow_html=True)
-
-st.title("🔧 Admin Panel")
-st.caption("AI জ্ঞানভাণ্ডার — বই যোগ ও মুছুন")
-
-with st.spinner("লোড হচ্ছে..."):
-    st.session_state.kb = load_kb()
-
-kb = st.session_state.kb
+kb = load_kb()
 books = sorted(set(c["book"] for c in kb)) if kb else []
 
 col1, col2 = st.columns(2)
-with col1:
-    st.metric("মোট বই", len(books))
-with col2:
-    st.metric("মোট আইটেম", len(kb))
+col1.metric("Total Books", len(books))
+col2.metric("Total Items", len(kb))
 
 st.divider()
+st.subheader("Add Book")
+uf = st.file_uploader("Upload DOCX file", type=["docx"])
+bn = st.text_input("Book name (optional)")
 
-# বই যোগ করুন
-st.subheader("📤 বই যোগ করুন")
-uf = st.file_uploader("DOCX ফাইল আপলোড করুন", type=["docx"])
-bn = st.text_input("বইয়ের নাম (ঐচ্ছিক)")
-if uf and st.button("যোগ করুন", type="primary"):
+if uf and st.button("Add", type="primary"):
     name = bn or uf.name.replace(".docx", "")
-    with st.spinner("প্রসেস হচ্ছে... GitHub-এ সেভ হচ্ছে..."):
+    with st.spinner("Processing..."):
         nc = parse_docx(uf.read(), name)
         kd = load_kb()
         kd = [c for c in kd if c["book"] != name]
         kd.extend(nc)
-        save_kb(kd)
-        st.session_state.kb = kd
-st.success(str(len(nc)) + " items added!")
+        saved = save_kb(kd)
+    if saved:
+        st.success(str(len(nc)) + " items added successfully!")
+    else:
+        st.error("Save failed!")
 
 st.divider()
 
-# বই মুছুন
 if books:
-    st.subheader("🗑️ বই মুছুন")
-    db = st.selectbox("বই সিলেক্ট করুন", options=books)
-    if st.button("মুছুন", type="secondary"):
+    st.subheader("Delete Book")
+    db = st.selectbox("Select book", options=books)
+    if st.button("Delete", type="secondary"):
         kd = load_kb()
         kd = [c for c in kd if c["book"] != db]
-        save_kb(kd)
-        st.session_state.kb = kd
-        st.success("মুছে গেছে!")
-        st.rerun()
+        saved = save_kb(kd)
+        if saved:
+            st.success("Deleted!")
+        else:
+            st.error("Delete failed!")
 
-st.divider()
-
-# বইয়ের তালিকা
-if books:
-    st.subheader("📚 বইয়ের তালিকা")
+    st.divider()
+    st.subheader("Book List")
     for b in books:
         cnt = sum(1 for c in kb if c["book"] == b)
-        st.write("📖 " + b + " (" + str(cnt) + " আইটেম)")
+        st.write("- " + b + " (" + str(cnt) + " items)")
