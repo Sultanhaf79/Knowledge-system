@@ -85,27 +85,48 @@ st.divider()
 query = st.text_input("🔍 প্রশ্ন লিখুন", placeholder="যেকোনো প্রশ্ন লিখুন...")
 if query:
     if not kb:
-        st.warning("ডেটাবেজ খালি!")
+        st.warning("Database empty!")
     else:
-        with st.spinner("খোঁজা হচ্ছে..."):
-            results = search(query, kb, top_k=7)
-            answer = get_answer(query, results)
-        st.subheader("📝 উত্তর")
-        st.write(answer)
-        if results:
+        count_keywords = ["kotogulo", "koyti", "sob nam", "list", "how many", "all names", "koti", "kototi"]
+        bangla_count = any(kw in query for kw in ["কতগুলো", "কয়টা", "কয়টি", "কতটি", "সব নাম", "সবগুলো", "তালিকা", "কী কী"])
+        eng_count = any(kw in query.lower() for kw in ["how many", "list all", "all names"])
+        is_count_query = bangla_count or eng_count
+
+        if is_count_query:
+            book_names = list(set(c["book"] for c in kb))
+            matched_book = None
+            for b in book_names:
+                if b.lower() in query.lower():
+                    matched_book = b
+                    break
+            if matched_book:
+                items = [c for c in kb if c["book"] == matched_book]
+            else:
+                items = kb
+            st.subheader("Result: " + str(len(items)) + " items found")
             st.divider()
-            st.subheader("📄 রেফারেন্স (" + str(len(results)) + "টি উৎস)")
-            for i, r in enumerate(results, 1):
-                label = "[" + str(i) + "] 📖 " + r["book"] + " | " + str(r["cq_num"])
-                with st.expander(label):
-                    st.markdown("<h3 style='text-align:center'>" + str(r["cq_num"]) + "</h3>", unsafe_allow_html=True)
-                    for line in r["text"].split("\n"):
-                        st.write(line)
-                    if r.get("parts"):
-                        for k, v in r["parts"].items():
-                            st.write(k + ". " + v)
+            for i, item in enumerate(items, 1):
+                st.write(str(i) + ". [" + item["book"] + "] " + str(item["cq_num"]))
+        else:
+            with st.spinner("Searching..."):
+                results = search(query, kb, top_k=7)
+                answer = get_answer(query, results)
+            st.subheader("Answer")
+            st.write(answer)
+            if results:
+                st.divider()
+                st.subheader("References (" + str(len(results)) + ")")
+                for i, r in enumerate(results, 1):
+                    label = "[" + str(i) + "] " + r["book"] + " | " + str(r["cq_num"])
+                    with st.expander(label):
+                        st.markdown("<h3 style='text-align:center'>" + str(r["cq_num"]) + "</h3>", unsafe_allow_html=True)
+                        for line in r["text"].split("\n"):
+                            st.write(line)
+                        if r.get("parts"):
+                            for k, v in r["parts"].items():
+                                st.write(k + ". " + v)
 else:
     if not kb:
-        st.info("বাম দিক থেকে DOCX ফাইল আপলোড করুন।")
+        st.info("Upload DOCX files from admin panel.")
     else:
-        st.info("উপরে প্রশ্ন লিখুন।")
+        st.info("Write a question above.")
