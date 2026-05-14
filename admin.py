@@ -4,6 +4,24 @@ from docx import Document
 
 st.set_page_config(page_title="Admin Panel", page_icon="🔧", layout="wide")
 
+st.set_page_config(page_title="Admin Panel", page_icon="🔧", layout="wide")
+
+st.markdown("""
+<style>
+.stDeployButton {display:none;}
+#MainMenu {display:none;}
+footer {display:none;}
+header {display:none;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stHeader"] {display:none;}
+[data-testid="stDecoration"] {display:none;}
+.viewerBadge_container__1QSob {display:none;}
+.viewerBadge_link__1S137 {display:none;}
+#stDecoration {display:none;}
+</style>
+""", unsafe_allow_html=True)
+
+
 st.markdown("""
 <style>
 .stDeployButton {display:none;}
